@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Player - Tratra</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="system.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen flex">
+
+    <!-- Course Navigation -->
+    <aside class="w-80 bg-white border-r border-slate-200 hidden lg:flex flex-col">
+        <div class="p-6 border-b border-slate-100">
+            <a href="dashboard.html" class="text-indigo-600 font-medium flex items-center gap-2 hover:underline">
+                ← Back to Dashboard
+            </a>
+            <h3 id="course-title" class="text-xl font-bold mt-6">Course Loading...</h3>
+            <div class="mt-2 w-full bg-slate-100 rounded-full h-2">
+                <div id="course-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <p id="course-progress-text" class="text-xs text-slate-500 mt-2">0% Completed</p>
+        </div>
+        
+        <!-- Resources Section -->
+        <div class="p-6 bg-indigo-50 border-b border-indigo-100">
+            <h4 class="text-xs font-bold text-indigo-900 uppercase tracking-wider mb-4">Course Resources</h4>
+            <div class="space-y-3">
+                <a id="res-ppt" href="#" class="flex items-center gap-3 text-sm font-medium text-indigo-700 hover:text-indigo-900 transition">
+                    <span>📊</span> Presentation (PPT)
+                </a>
+                <a id="res-pdf" href="#" class="flex items-center gap-3 text-sm font-medium text-indigo-700 hover:text-indigo-900 transition">
+                    <span>📄</span> Course Handbook (PDF)
+                </a>
+                <a id="res-video" href="#" class="flex items-center gap-3 text-sm font-medium text-indigo-700 hover:text-indigo-900 transition">
+                    <span>🎥</span> Full Lecture Video
+                </a>
+            </div>
+        </div>
+
+        <nav class="flex-grow overflow-y-auto p-6 space-y-6" id="course-syllabus">
+            <!-- Syllabus injected by JS -->
+        </nav>
+    </aside>
+
+    <!-- Lesson Content -->
+    <main class="flex-grow overflow-y-auto">
+        <div class="max-w-4xl mx-auto px-8 py-12">
+            <div class="mb-8">
+                <span id="lesson-module" class="text-indigo-600 font-bold text-sm uppercase tracking-wide">Module 1 • Lesson 1</span>
+                <h1 id="lesson-title" class="text-4xl font-extrabold text-slate-900 mt-2">Loading Lesson...</h1>
+            </div>
+
+            <!-- Video Player Mockup -->
+            <div class="aspect-video bg-slate-900 rounded-3xl shadow-2xl mb-10 flex items-center justify-center relative overflow-hidden group cursor-pointer" onclick="completeLesson()">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                <div class="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition duration-300 shadow-xl border border-white/30">
+                    ▶
+                </div>
+                <div class="absolute bottom-6 left-6 text-white">
+                    <p class="font-medium">Click to simulate watching the lesson</p>
+                    <p class="text-sm text-slate-300">Completion unlocks the next lesson</p>
+                </div>
+            </div>
+
+            <div id="lesson-body" class="prose prose-slate max-w-none">
+                <!-- Content injected by JS -->
+            </div>
+
+            <div class="flex justify-between items-center mt-16 pt-8 border-t border-slate-200">
+                <button onclick="prevLesson()" class="px-6 py-3 text-slate-600 font-medium hover:text-indigo-600 transition">← Previous Lesson</button>
+                <button id="next-btn" onclick="completeLesson()" class="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg">Complete and Continue →</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const COURSE_DATA = {
+            'c1': {
+                title: "The Philosophy and Psychology of a Teacher",
+                modules: [
+                    { title: "Mindset", lessons: [{ title: "Defining the Teacher", body: "Content for lesson 1..." }, { title: "Growth Mindset", body: "Content for lesson 2..." }] },
+                    { title: "Cognitive Load", lessons: [{ title: "The Brain's Limit", body: "Content for lesson 3..." }, { title: "Chunking", body: "Content for lesson 4..." }] }
+                ]
+            },
+            'default': {
+                title: "Standard Training Module",
+                modules: [
+                    { title: "Foundations", lessons: [{ title: "Introduction", body: "Welcome to the course content." }, { title: "Core Concepts", body: "Exploring the basics of this subject." }] },
+                    { title: "Application", lessons: [{ title: "Practical Exercise", body: "Applying what you learned." }, { title: "Case Study", body: "Real world example." }] }
+                ]
+            }
+        };
+
+        let currentCourseId = 'c1';
+        let currentModuleIdx = 0;
+        let currentLessonIdx = 0;
+
+        function initCourse() {
+            const params = new URLSearchParams(window.location.search);
+            currentCourseId = params.get('id') || 'c1';
+            
+            const user = Tratra.auth.getCurrentUser();
+            if (!user) { window.location.href = 'login.html'; return; }
+            
+            if (!Tratra.lms.checkAccess(user.id, currentCourseId)) {
+                alert('You are not enrolled in this course. Please purchase access first.');
+                window.location.href = 'courses.html';
+                return;
+            }
+
+            const course = Tratra.courses[currentCourseId] || Tratra.courses['c1'];
+            document.getElementById('course-title').innerText = course.title;
+            
+            if (course.resources) {
+                document.getElementById('res-ppt').href = course.resources.ppt;
+                document.getElementById('res-pdf').href = course.resources.pdf;
+                document.getElementById('res-video').href = course.resources.video;
+            }
+
+            renderSyllabus(course);
+            loadLesson();
+            updateProgressBar();
+        }
+
+        function renderSyllabus(course) {
+            const nav = document.getElementById('course-syllabus');
+            nav.innerHTML = '';
+            
+            course.modules.forEach((mod, mIdx) => {
+                const modDiv = document.createElement('div');
+                modDiv.innerHTML = `<h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">${mod.title}</h4>`;
+                const list = document.createElement('div');
+                list.className = 'space-y-3 mb-6';
+                
+                mod.lessons.forEach((les, lIdx) => {
+                    const a = document.createElement('a');
+                    a.href = "#";
+                    a.className = `flex items-center gap-3 text-sm font-medium transition ${mIdx === currentModuleIdx && lIdx === currentLessonIdx ? 'text-indigo-600 font-bold' : 'text-slate-700 hover:text-indigo-600'}`;
+                    a.innerHTML = `<span class="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-xs">${lIdx + 1}</span> ${les.title}`;
+                    a.onclick = (e) => { e.preventDefault(); currentModuleIdx = mIdx; currentLessonIdx = lIdx; loadLesson(); renderSyllabus(course); };
+                    list.appendChild(a);
+                });
+                modDiv.appendChild(list);
+                nav.appendChild(modDiv);
+            });
+        }
+
+        function loadLesson() {
+            const course = COURSE_DATA[currentCourseId] || COURSE_DATA['default'];
+            const lesson = course.modules[currentModuleIdx].lessons[currentLessonIdx];
+            
+            document.getElementById('lesson-module').innerText = `Module ${currentModuleIdx + 1} • Lesson ${currentLessonIdx + 1}`;
+            document.getElementById('lesson-title').innerText = lesson.title;
+            document.getElementById('lesson-body').innerHTML = `<p class="text-slate-600 text-lg">${lesson.body}</p>`;
+        }
+
+        function completeLesson() {
+            const user = Tratra.auth.getCurrentUser();
+            const course = COURSE_DATA[currentCourseId] || COURSE_DATA['default'];
+            const totalLessons = course.modules.reduce((acc, m) => acc + m.lessons.length, 0);
+            
+            const currentProgress = Math.round(((currentModuleIdx * 2 + currentLessonIdx + 1) / totalLessons) * 100);
+            Tratra.lms.updateProgress(user.id, currentCourseId, currentProgress);
+            
+            updateProgressBar();
+            
+            currentLessonIdx++;
+            if (currentLessonIdx >= course.modules[currentModuleIdx].lessons.length) {
+                currentLessonIdx = 0;
+                currentModuleIdx++;
+            }
+            
+            if (currentModuleIdx >= course.modules.length) {
+                alert('Congratulations! You have completed the course content. You can now take the final quiz!');
+                window.location.href = `quiz.html?id=${currentCourseId}`;
+            } else {
+                loadLesson();
+                renderSyllabus(course);
+            }
+        }
+
+        function updateProgressBar() {
+            const user = Tratra.auth.getCurrentUser();
+            const course = user.enrolledCourses.find(c => c.courseId === currentCourseId);
+            const prog = course ? course.progress : 0;
+            document.getElementById('course-progress-bar').style.width = prog + '%';
+            document.getElementById('course-progress-text').innerText = prog + '% Completed';
+        }
+
+        function prevLesson() {
+            if (currentLessonIdx > 0) {
+                currentLessonIdx--;
+            } else if (currentModuleIdx > 0) {
+                currentModuleIdx--;
+                currentLessonIdx = 1; 
+            }
+            loadLesson();
+            renderSyllabus(COURSE_DATA[currentCourseId] || COURSE_DATA['default']);
+        }
+
+        window.onload = initCourse;
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a07010d9acd5cfba',t:'MTc4MDY3MTgyNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

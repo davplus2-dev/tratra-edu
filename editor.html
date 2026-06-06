@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CMS Editor - Tratra Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="system.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans min-h-screen flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-slate-900 text-white hidden md:flex flex-col">
+        <div class="p-6">
+            <a href="index.html" class="text-2xl font-bold text-white">Tratra Admin</a>
+        </div>
+        <nav class="flex-grow px-4 space-y-2 mt-4">
+            <a href="admin.html" class="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition">
+                <span>📊</span> Overview
+            </a>
+            <a href="#" class="flex items-center gap-3 px-4 py-3 bg-indigo-600 rounded-lg text-white font-medium shadow-lg">
+                <span>🛠️</span> CMS Editor
+            </a>
+            <a href="admin.html" class="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition">
+                <span>💰</span> Payment Approval
+            </a>
+        </nav>
+        <div class="p-6 border-t border-slate-800">
+            <button onclick="handleLogout()" class="w-full text-center text-sm text-slate-400 hover:text-white transition">Logout Admin</button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-grow overflow-y-auto">
+        <header class="bg-white shadow-sm px-8 py-4 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-slate-800">Content Management System</h2>
+            <div class="flex items-center gap-4">
+                <span class="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold uppercase">Administrator</span>
+            </div>
+        </header>
+
+        <div class="p-8 max-w-6xl mx-auto">
+            <!-- Section 1: General Settings -->
+            <div class="mb-12">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">General Settings</h3>
+                        <p class="text-slate-500">Update your site identity and contact info.</p>
+                    </div>
+                    <button onclick="saveSettings()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition shadow-md">Save Settings</button>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Site Name</label>
+                        <input type="text" id="setting-siteName" class="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">WhatsApp Number (International Format)</label>
+                        <input type="text" id="setting-whatsapp" class="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Payment & Bank Details -->
+            <div class="mb-12">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">Payment Gateway Details</h3>
+                        <p class="text-slate-500">Configure bank accounts for manual transfers.</p>
+                    </div>
+                    <button onclick="saveBankDetails()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition shadow-md">Save Bank Details</button>
+                </div>
+                <div id="bank-editor-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Bank editors injected here -->
+                </div>
+            </div>
+
+            <!-- Section 3: Course Content -->
+            <div>
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-800">Course Resource Manager</h3>
+                        <p class="text-slate-500">Manage titles and downloadable assets for each course.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="resetAllCustomizations()" class="px-4 py-2 bg-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-300 transition">Reset Defaults</button>
+                        <button onclick="saveAllCourses()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition shadow-md">Save All Courses</button>
+                    </div>
+                </div>
+                <div id="course-editor-grid" class="grid grid-cols-1 gap-6">
+                    <!-- Course Editors injected here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function initCMS() {
+            const user = Tratra.auth.getCurrentUser();
+            if (!user || user.role !== 'admin') {
+                alert('Access Denied.');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Load General Settings
+            document.getElementById('setting-siteName').value = Tratra.settings.siteName;
+            document.getElementById('setting-whatsapp').value = Tratra.settings.whatsapp;
+
+            // Load Bank Details
+            const bankGrid = document.getElementById('bank-editor-grid');
+            bankGrid.innerHTML = '';
+            Object.entries(Tratra.settings.bankData).forEach(([cur, data]) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-200';
+                card.innerHTML = `
+                    <h4 class="text-lg font-bold text-indigo-600 mb-4">${cur} Account</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Bank Name</label>
+                            <input type="text" data-cur="${cur}" data-field="bank" value="${data.bank}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Account Name</label>
+                            <input type="text" data-cur="${cur}" data-field="accName" value="${data.accName}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Account Number</label>
+                            <input type="text" data-cur="${cur}" data-field="accNum" value="${data.accNum}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Additional Info / IBAN</label>
+                            <input type="text" data-cur="${cur}" data-field="extra" value="${data.extra}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+                `;
+                bankGrid.appendChild(card);
+            });
+
+            // Load Course Editors
+            const courseGrid = document.getElementById('course-editor-grid');
+            courseGrid.innerHTML = '';
+            Object.entries(Tratra.courses).forEach(([id, course]) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-200';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 class="text-lg font-bold text-indigo-600">${id.toUpperCase()} - ${course.title}</h4>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Course Title</label>
+                            <input type="text" id="title-${id}" value="${course.title}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">PPT Link</label>
+                            <input type="text" id="ppt-${id}" value="${course.resources.ppt}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">PDF Link</label>
+                            <input type="text" id="pdf-${id}" value="${course.resources.pdf}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Video Link</label>
+                            <input type="text" id="video-${id}" value="${course.resources.video}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+                `;
+                courseGrid.appendChild(card);
+            });
+        }
+
+        function saveSettings() {
+            const siteName = document.getElementById('setting-siteName').value;
+            const whatsapp = document.getElementById('setting-whatsapp').value;
+            
+            Tratra.settings.siteName = siteName;
+            Tratra.settings.whatsapp = whatsapp;
+            
+            localStorage.setItem('tratra_site_settings', JSON.stringify(Tratra.settings));
+            alert('General settings updated successfully!');
+        }
+
+        function saveBankDetails() {
+            const inputs = document.querySelectorAll('.bank-input');
+            inputs.forEach(input => {
+                const cur = input.getAttribute('data-cur');
+                const field = input.getAttribute('data-field');
+                Tratra.settings.bankData[cur][field] = input.value;
+            });
+            
+            localStorage.setItem('tratra_site_settings', JSON.stringify(Tratra.settings));
+            alert('Bank details updated successfully!');
+        }
+
+        function saveAllCourses() {
+            Object.keys(Tratra.courses).forEach(id => {
+                const title = document.getElementById(`title-${id}`).value;
+                const ppt = document.getElementById(`ppt-${id}`).value;
+                const pdf = document.getElementById(`pdf-${id}`).value;
+                const video = document.getElementById(`video-${id}`).value;
+
+                Tratra.courses[id].title = title;
+                Tratra.courses[id].resources = { ppt, pdf, video };
+            });
+            
+            localStorage.setItem('tratra_course_overrides', JSON.stringify(Tratra.courses));
+            alert('All course resources updated successfully!');
+        }
+
+        function resetAllCustomizations() {
+            if (confirm('Are you sure you want to reset all customizations? This will revert everything to the defaults in system.js.')) {
+                localStorage.removeItem('tratra_course_overrides');
+                localStorage.removeItem('tratra_site_settings');
+                window.location.reload();
+            }
+        }
+
+        function handleLogout() {
+            Tratra.auth.logout();
+            window.location.href = 'login.html';
+        }
+
+        window.onload = initCMS;
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a0752dcb3c4fcf90',t:'MTc4MDcyNTQzOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

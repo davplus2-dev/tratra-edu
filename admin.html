@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Tratra</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="system.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans min-h-screen flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-slate-900 text-white hidden md:flex flex-col">
+        <div class="p-6">
+            <a href="index.html" class="text-2xl font-bold text-white">Tratra Admin</a>
+        </div>
+        <nav class="flex-grow px-4 space-y-2 mt-4">
+            <a href="admin.html" class="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition">
+                <span>📊</span> Overview
+            </a>
+            <a href="editor.html" class="flex items-center gap-3 px-4 py-3 bg-slate-800 rounded-lg text-white font-medium">
+                <span>📚</span> Course Editor
+            </a>
+            <a href="admin.html" class="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition">
+                <span>💰</span> Payment Approval
+            </a>
+        </nav>
+        <div class="p-6 border-t border-slate-800">
+            <button onclick="handleLogout()" class="w-full text-center text-sm text-slate-400 hover:text-white transition">Logout Admin</button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-grow overflow-y-auto">
+        <header class="bg-white shadow-sm px-8 py-4 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-slate-800">Administrative Dashboard</h2>
+            <div class="flex items-center gap-4">
+                <span class="bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-bold uppercase">Administrator</span>
+            </div>
+        </header>
+
+        <div class="p-8">
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-slate-500 text-sm mb-1">Total Teachers</p>
+                    <h3 id="admin-total-users" class="text-3xl font-bold">0</h3>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-slate-500 text-sm mb-1">Total Revenue</p>
+                    <h3 id="admin-total-revenue" class="text-3xl font-bold">$0</h3>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-slate-500 text-sm mb-1">Pending Approvals</p>
+                    <h3 id="admin-pending" class="text-3xl font-bold text-orange-500">0</h3>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-slate-500 text-sm mb-1">Active Courses</p>
+                    <h3 class="text-3xl font-bold">8</h3>
+                </div>
+            </div>
+
+            <!-- Student Performance Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+                <div class="p-6 border-b border-slate-100">
+                    <h3 class="text-lg font-bold text-slate-800">Student Quiz Scores</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                            <tr>
+                                <th class="px-6 py-4">Teacher Name</th>
+                                <th class="px-6 py-4">Course</th>
+                                <th class="px-6 py-4">Score</th>
+                                <th class="px-6 py-4">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scores-table" class="divide-y divide-slate-100">
+                            <!-- Scores injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Payment Approval Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-slate-800">Pending Bank Transfers</h3>
+                    <span class="text-xs text-slate-400">Manual Verification Required</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                            <tr>
+                                <th class="px-6 py-4">User</th>
+                                <th class="px-6 py-4">Amount</th>
+                                <th class="px-6 py-4">Reference</th>
+                                <th class="px-6 py-4">Plan</th>
+                                <th class="px-6 py-4 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payments-table" class="divide-y divide-slate-100">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-payments" class="hidden p-12 text-center text-slate-400">
+                    No pending payments to approve.
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function initAdmin() {
+            // SECRET ADMIN ACTIVATION: Check if URL contains ?makeAdmin=true
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('makeAdmin') === 'true') {
+                if (Tratra.auth.forceAdmin()) {
+                    alert('Admin Access Granted! You can now manage the site.');
+                } else {
+                    alert('Error: Please login first before using the admin trigger.');
+                    window.location.href = 'login.html';
+                    return;
+                }
+            }
+
+            const user = Tratra.auth.getCurrentUser();
+            if (!user || user.role !== 'admin') {
+                alert('Access Denied. Administrators only.');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const users = Tratra.db.getUsers();
+            const payments = Tratra.db.getPayments();
+
+            document.getElementById('admin-total-users').innerText = users.length;
+            
+            const revenue = payments
+                .filter(p => p.status === 'completed')
+                .reduce((sum, p) => sum + p.amount, 0);
+            document.getElementById('admin-total-revenue').innerText = `$${revenue}`;
+
+            const pending = payments.filter(p => p.status === 'pending');
+            document.getElementById('admin-pending').innerText = pending.length;
+
+            // Populate Scores Table
+            const scoresTable = document.getElementById('scores-table');
+            scoresTable.innerHTML = '';
+            users.forEach(u => {
+                if (u.scores) {
+                    for (const [courseId, data] of Object.entries(u.scores)) {
+                        const course = Tratra.courses[courseId] || { title: 'Course ' + courseId };
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-slate-50 transition';
+                        row.innerHTML = `
+                            <td class="px-6 py-4 font-medium text-slate-800">${u.name}</td>
+                            <td class="px-6 py-4 text-slate-600">${course.title}</td>
+                            <td class="px-6 py-4 font-bold ${data.score >= 60 ? 'text-green-600' : 'text-red-600'}">${data.score}/100</td>
+                            <td class="px-6 py-4 text-slate-500 text-xs">${data.date}</td>
+                        `;
+                        scoresTable.appendChild(row);
+                    }
+                }
+            });
+
+            // Populate Payments Table
+            const paymentsTable = document.getElementById('payments-table');
+            paymentsTable.innerHTML = '';
+
+            if (pending.length === 0) {
+                document.getElementById('no-payments').classList.remove('hidden');
+            } else {
+                pending.forEach(p => {
+                    const user = Tratra.db.getUser(p.userId);
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-slate-50 transition';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 font-medium text-slate-800">${user ? user.name : 'Unknown'}</td>
+                        <td class="px-6 py-4 text-slate-600">${p.currency} ${p.amount}</td>
+                        <td class="px-6 py-4 text-slate-500 font-mono text-xs">${p.reference}</td>
+                        <td class="px-6 py-4 text-xs font-bold uppercase">${p.plan}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="approvePayment('${p.id}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition">Approve</button>
+                        </td>
+                    `;
+                    paymentsTable.appendChild(row);
+                });
+            }
+        }
+
+        async function approvePayment(paymentId) {
+            const payments = Tratra.db.getPayments();
+            const payment = payments.find(p => p.id === paymentId);
+            if (!payment) return;
+
+            payment.status = 'completed';
+            Tratra.db.savePayments(payments);
+            
+            Tratra.payments.grantAccess(payment.userId, payment.plan);
+            
+            alert('Payment approved! Access granted to user.');
+            initAdmin();
+        }
+
+        function handle,Logout() {
+            Tratra.auth.logout();
+            window.location.href = 'login.html';
+        }
+
+        window.onload = initAdmin;
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a070a7693fae0381',t:'MTc4MDY3Nzk5MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
