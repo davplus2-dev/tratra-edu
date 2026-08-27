@@ -4,8 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Course Quiz - Tratra</title>
+    <meta name="description" content="Complete your Tratra course assessment and track your professional-development result.">
+    <link rel="canonical" href="https://tratraedu.com/quiz.html">
+    <meta property="og:title" content="Course Assessment | Tratra">
+    <meta property="og:description" content="Complete your Tratra course assessment and track your professional-development result.">
+    <meta property="og:url" content="https://tratraedu.com/quiz.html">
+    <meta property="og:type" content="website">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="firebase-config.js"></script>
     <script src="system.js"></script>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -61,94 +72,29 @@
     </main>
 
     <script>
-        let currentCourseId = '';
-        let currentQuestionIdx = 0;
-        let userAnswers = [];
-        let questions = [];
-
-        function startQuiz() {
-            const params = new URLSearchParams(window.location.search);
-            currentCourseId = params.get('id') || 'c1';
-            const course = Tratra.courses[currentCourseId] || Tratra.courses['c1'];
-            
-            document.getElementById('quiz-title').innerText = `${course.title} Quiz`;
-            questions = course.quiz;
-            userAnswers = new Array(questions.length).fill(null);
-            
-            document.getElementById('quiz-intro').classList.add('hidden');
-            document.getElementById('result-screen').classList.add('hidden');
-            document.getElementById('quiz-container').classList.remove('hidden');
-            
-            renderQuestion();
-        }
-
-        function renderQuestion() {
-            const q = questions[currentQuestionIdx];
-            document.getElementById('question-count').innerText = `Question ${currentQuestionIdx + 1} of ${questions.length}`;
-            document.getElementById('question-text').innerText = q.q;
-            document.getElementById('quiz-progress').style.width = `${((currentQuestionIdx + 1) / questions.length) * 100}%`;
-            
-            const grid = document.getElementById('options-grid');
-            grid.innerHTML = '';
-            
-            q.a.forEach((opt, idx) => {
-                const btn = document.createElement('button');
-                btn.className = `w-full text-left p-4 rounded-xl border-2 transition font-medium ${userAnswers[currentQuestionIdx] === idx ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:border-indigo-300 text-slate-700'}`;
-                btn.innerHTML = `<span class="mr-3 font-bold opacity-50">${String.fromCharCode(65 + idx)}.</span> ${opt}`;
-                btn.onclick = () => selectOption(idx);
-                grid.appendChild(btn);
-            });
-
-            document.getElementById('prev-btn').style.visibility = currentQuestionIdx === 0 ? 'hidden' : 'visible';
-            document.getElementById('next-btn').innerText = currentQuestionIdx === questions.length - 1 ? 'Submit Quiz' : 'Next Question';
-        }
-
-        function selectOption(idx) {
-            userAnswers[currentQuestionIdx] = idx;
-            renderQuestion();
-        }
-
-        function nextQuestion() {
-            if (userAnswers[currentQuestionIdx] === null) {
-                alert('Please select an answer before proceeding.');
-                return;
-            }
-
-            if (currentQuestionIdx < questions.length - 1) {
-                currentQuestionIdx++;
-                renderQuestion();
-            } else {
-                submitQuiz();
-            }
-        }
-
-        function prevQuestion() {
-            if (currentQuestionIdx > 0) {
-                currentQuestionIdx--;
-                renderQuestion();
-            }
-        }
-
-        function submitQuiz() {
-            let correctCount = 0;
-            questions.forEach((q, idx) => {
-                if (userAnswers[idx] === q.correct) correctCount++;
-            });
-
-            const score = correctCount * 4;
-            const user = Tratra.auth.getCurrentUser();
-            Tratra.lms.saveScore(user.id, currentCourseId, score);
-
-            document.getElementById('quiz-container').classList.add('hidden');
-            document.getElementById('result-screen').classList.remove('hidden');
-            document.getElementById('score-circle').innerText = score;
-            document.getElementById('result-msg').innerText = score >= 60 ? "Great job! You've passed the assessment." : "You didn't pass this time. Keep studying and try again!";
-        }
-
-        window.onload = () => {
-            const params = new URLSearchParams(window.location.search);
-            if (!params.get('id')) window.location.href = 'dashboard.html';
-        };
+      let currentCourseId = '';
+      let currentQuestionIdx = 0;
+      let userAnswers = [];
+      let questions = [];
+      let quizUser;
+      function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c])); }
+      async function startQuiz() {
+        const state = await Tratra.auth.ready; quizUser = Tratra.auth.getCurrentUser();
+        if (!state.user || !quizUser) { window.location.href = 'login.html'; return; }
+        currentCourseId = new URLSearchParams(window.location.search).get('id') || 'c1';
+        if (!(await Tratra.lms.checkAccess(quizUser.uid, currentCourseId))) { alert('You are not enrolled in this course.'); window.location.href = 'courses.html'; return; }
+        const course = Tratra.courses[currentCourseId] || Tratra.courses.c1;
+        document.getElementById('quiz-title').innerText = `${course.title} Quiz`;
+        questions = Array.isArray(course.quiz) ? course.quiz : [];
+        userAnswers = new Array(questions.length).fill(null); currentQuestionIdx = 0;
+        document.getElementById('quiz-intro').classList.add('hidden'); document.getElementById('result-screen').classList.add('hidden'); document.getElementById('quiz-container').classList.remove('hidden'); renderQuestion();
+      }
+      function renderQuestion() { const q = questions[currentQuestionIdx]; if (!q) return; document.getElementById('question-count').innerText = `Question ${currentQuestionIdx + 1} of ${questions.length}`; document.getElementById('question-text').innerText = q.q; document.getElementById('quiz-progress').style.width = `${((currentQuestionIdx + 1) / questions.length) * 100}%`; const grid = document.getElementById('options-grid'); grid.innerHTML = ''; q.a.forEach((option, index) => { const button = document.createElement('button'); button.className = `w-full text-left p-4 rounded-xl border-2 transition font-medium ${userAnswers[currentQuestionIdx] === index ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:border-indigo-300 text-slate-700'}`; button.innerHTML = `<span class="mr-3 font-bold opacity-50">${String.fromCharCode(65 + index)}.</span> ${escapeHtml(option)}`; button.onclick = () => selectOption(index); grid.appendChild(button); }); document.getElementById('prev-btn').style.visibility = currentQuestionIdx === 0 ? 'hidden' : 'visible'; document.getElementById('next-btn').innerText = currentQuestionIdx === questions.length - 1 ? 'Submit Quiz' : 'Next Question'; }
+      function selectOption(index) { userAnswers[currentQuestionIdx] = index; renderQuestion(); }
+      function nextQuestion() { if (userAnswers[currentQuestionIdx] === null) { alert('Please select an answer before proceeding.'); return; } if (currentQuestionIdx < questions.length - 1) { currentQuestionIdx++; renderQuestion(); } else submitQuiz(); }
+      function prevQuestion() { if (currentQuestionIdx > 0) { currentQuestionIdx--; renderQuestion(); } }
+      async function submitQuiz() { const correct = questions.reduce((total, q, index) => total + (userAnswers[index] === q.correct ? 1 : 0), 0); const score = questions.length ? Math.round((correct / questions.length) * 100) : 0; try { await Tratra.lms.saveScore(quizUser.uid, currentCourseId, score); } catch (error) { alert(error.message || 'Could not save your score.'); return; } document.getElementById('quiz-container').classList.add('hidden'); document.getElementById('result-screen').classList.remove('hidden'); document.getElementById('score-circle').innerText = score; document.getElementById('result-msg').innerText = score >= 60 ? "Great job! You've passed the assessment." : "You didn't pass this time. Keep studying and try again!"; }
+      window.addEventListener('load', () => { if (!new URLSearchParams(window.location.search).get('id')) window.location.href = 'dashboard.html'; });
     </script>
 </body>
 </html>

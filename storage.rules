@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /smart-tutor/{teacherId}/{topicId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == teacherId;
+      allow create, update: if request.auth != null &&
+        request.auth.uid == teacherId &&
+        request.resource.contentType.matches('video/.*');
+      allow delete: if request.auth != null && request.auth.uid == teacherId;
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isTratraAdmin() {
+      return signedIn() &&
+        (('admin' in request.auth.token && request.auth.token.admin == true) ||
+         (request.auth.token.email == 'tratraedu@gmail.com' &&
+          request.auth.token.email_verified == true));
+    }
+
+    match /tratraPayments/{userId}/{fileName} {
+      allow read: if isTratraAdmin() ||
+        (signedIn() && request.auth.uid == userId);
+      allow create, update: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('(image/.*|application/pdf)');
+      allow delete: if isTratraAdmin() ||
+        (signedIn() && request.auth.uid == userId);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

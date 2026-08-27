@@ -6,6 +6,11 @@
     <title>Admin Panel - Tratra</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="firebase-config.js"></script>
     <script src="system.js"></script>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -101,6 +106,7 @@
                                 <th class="px-6 py-4">Amount</th>
                                 <th class="px-6 py-4">Reference</th>
                                 <th class="px-6 py-4">Plan</th>
+                                <th class="px-6 py-4">Proof</th>
                                 <th class="px-6 py-4 text-right">Action</th>
                             </tr>
                         </thead>
@@ -117,105 +123,78 @@
     </main>
 
     <script>
-        function initAdmin() {
-            // SECRET ADMIN ACTIVATION: Check if URL contains ?makeAdmin=true
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('makeAdmin') === 'true') {
-                if (Tratra.auth.forceAdmin()) {
-                    alert('Admin Access Granted! You can now manage the site.');
-                } else {
-                    alert('Error: Please login first before using the admin trigger.');
-                    window.location.href = 'login.html';
-                    return;
-                }
-            }
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[char]));
+      }
 
-            const user = Tratra.auth.getCurrentUser();
-            if (!user || user.role !== 'admin') {
-                alert('Access Denied. Administrators only.');
-                window.location.href = 'login.html';
-                return;
-            }
+      async function initAdmin() {
+        try {
+          await Tratra.auth.ready;
+          if (!Tratra.auth.isAdmin()) {
+            alert("Administrator access is required. Please verify the Tratra administrator email.");
+            window.location.href = "login.html";
+            return;
+          }
 
-            const users = Tratra.db.getUsers();
-            const payments = Tratra.db.getPayments();
+          const [users, payments, scores] = await Promise.all([Tratra.db.getUsers(), Tratra.db.getPayments(), Tratra.db.getScores()]);
+          const completed = payments.filter((payment) => payment.status === "completed");
+          const pending = payments.filter((payment) => payment.status === "pending");
+          document.getElementById("admin-total-users").innerText = users.length;
+          document.getElementById("admin-total-revenue").innerText = `$${completed.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)}`;
+          document.getElementById("admin-pending").innerText = pending.length;
 
-            document.getElementById('admin-total-users').innerText = users.length;
-            
-            const revenue = payments
-                .filter(p => p.status === 'completed')
-                .reduce((sum, p) => sum + p.amount, 0);
-            document.getElementById('admin-total-revenue').innerText = `$${revenue}`;
+          const scoresTable = document.getElementById("scores-table");
+          scoresTable.innerHTML = "";
+          scores.forEach((data) => {
+            const user = users.find((item) => item.id === data.uid);
+            const row = document.createElement("tr");
+            row.className = "hover:bg-slate-50 transition";
+            row.innerHTML = `<td class="px-6 py-4 font-medium text-slate-800">${escapeHtml(user?.name || data.uid)}</td><td class="px-6 py-4 text-slate-600">${escapeHtml(Tratra.courses[data.courseId]?.title || data.courseId)}</td><td class="px-6 py-4 font-bold ${Number(data.score) >= 60 ? "text-green-600" : "text-red-600"}">${escapeHtml(data.score)}/100</td><td class="px-6 py-4 text-slate-500 text-xs">${escapeHtml(data.date || "")}</td>`;
+            scoresTable.appendChild(row);
+          });
 
-            const pending = payments.filter(p => p.status === 'pending');
-            document.getElementById('admin-pending').innerText = pending.length;
-
-            // Populate Scores Table
-            const scoresTable = document.getElementById('scores-table');
-            scoresTable.innerHTML = '';
-            users.forEach(u => {
-                if (u.scores) {
-                    for (const [courseId, data] of Object.entries(u.scores)) {
-                        const course = Tratra.courses[courseId] || { title: 'Course ' + courseId };
-                        const row = document.createElement('tr');
-                        row.className = 'hover:bg-slate-50 transition';
-                        row.innerHTML = `
-                            <td class="px-6 py-4 font-medium text-slate-800">${u.name}</td>
-                            <td class="px-6 py-4 text-slate-600">${course.title}</td>
-                            <td class="px-6 py-4 font-bold ${data.score >= 60 ? 'text-green-600' : 'text-red-600'}">${data.score}/100</td>
-                            <td class="px-6 py-4 text-slate-500 text-xs">${data.date}</td>
-                        `;
-                        scoresTable.appendChild(row);
-                    }
-                }
-            });
-
-            // Populate Payments Table
-            const paymentsTable = document.getElementById('payments-table');
-            paymentsTable.innerHTML = '';
-
-            if (pending.length === 0) {
-                document.getElementById('no-payments').classList.remove('hidden');
-            } else {
-                pending.forEach(p => {
-                    const user = Tratra.db.getUser(p.userId);
-                    const row = document.createElement('tr');
-                    row.className = 'hover:bg-slate-50 transition';
-                    row.innerHTML = `
-                        <td class="px-6 py-4 font-medium text-slate-800">${user ? user.name : 'Unknown'}</td>
-                        <td class="px-6 py-4 text-slate-600">${p.currency} ${p.amount}</td>
-                        <td class="px-6 py-4 text-slate-500 font-mono text-xs">${p.reference}</td>
-                        <td class="px-6 py-4 text-xs font-bold uppercase">${p.plan}</td>
-                        <td class="px-6 py-4 text-right">
-                            <button onclick="approvePayment('${p.id}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition">Approve</button>
-                        </td>
-                    `;
-                    paymentsTable.appendChild(row);
-                });
-            }
+          const paymentsTable = document.getElementById("payments-table");
+          paymentsTable.innerHTML = "";
+          document.getElementById("no-payments").classList.toggle("hidden", pending.length !== 0);
+          pending.forEach((payment) => {
+            const row = document.createElement("tr");
+            row.className = "hover:bg-slate-50 transition";
+            row.innerHTML = `<td class="px-6 py-4 font-medium text-slate-800">${escapeHtml(payment.name || payment.email || "Unknown")}</td><td class="px-6 py-4 text-slate-600">${escapeHtml(payment.currency || "")} ${escapeHtml(payment.amount || "")}</td><td class="px-6 py-4 text-slate-500 font-mono text-xs">${escapeHtml(payment.reference || "")}</td><td class="px-6 py-4 text-xs font-bold uppercase">${escapeHtml(payment.plan || "")}</td><td class="px-6 py-4">${payment.proofPath ? `<button onclick="openPaymentProof('${escapeHtml(payment.id)}')" class="text-indigo-600 text-xs font-bold hover:underline">View proof</button>` : '<span class="text-slate-400 text-xs">Not supplied</span>'}</td><td class="px-6 py-4 text-right"><button onclick="approvePayment('${escapeHtml(payment.id)}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition">Approve</button></td>`;
+            paymentsTable.appendChild(row);
+          });
+        } catch (error) {
+          console.error("Tratra admin load failed", error);
+          alert(error.message || "Could not load the administrator dashboard.");
         }
+      }
 
-        async function approvePayment(paymentId) {
-            const payments = Tratra.db.getPayments();
-            const payment = payments.find(p => p.id === paymentId);
-            if (!payment) return;
+      async function openPaymentProof(paymentId) {
+        try {
+          const payments = await Tratra.db.getPayments();
+          const payment = payments.find((item) => item.id === paymentId);
+          if (!payment?.proofPath) { alert("No proof file was supplied."); return; }
+          const url = await Tratra.payments.proofUrl(payment.proofPath);
+          window.open(url, "_blank", "noopener");
+        } catch (error) { alert(error.message || "Could not open the proof file."); }
+      }
 
-            payment.status = 'completed';
-            Tratra.db.savePayments(payments);
-            
-            Tratra.payments.grantAccess(payment.userId, payment.plan);
-            
-            alert('Payment approved! Access granted to user.');
-            initAdmin();
+      async function approvePayment(paymentId) {
+        if (!window.confirm("Approve this payment and grant the selected course access?")) return;
+        try {
+          await Tratra.payments.approve(paymentId);
+          alert("Payment approved and course access granted.");
+          await initAdmin();
+        } catch (error) {
+          alert(error.message || "Could not approve the payment.");
         }
+      }
 
-        function handle,Logout() {
-            Tratra.auth.logout();
-            window.location.href = 'login.html';
-        }
+      async function handleLogout() {
+        await Tratra.auth.logout();
+        window.location.href = "login.html";
+      }
 
-        window.onload = initAdmin;
-    </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a077b4cf880e1ba5',t:'MTc4MDc1MTk0MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+      window.addEventListener("load", initAdmin);
+    </script><script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>

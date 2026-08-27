@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /editor.html
+Disallow: /dashboard.html
+Disallow: /course.html
+Disallow: /quiz.html
+Sitemap: https://tratraedu.com/sitemap.xml

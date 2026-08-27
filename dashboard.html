@@ -4,8 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teacher Dashboard - Tratra</title>
+    <meta name="description" content="Access your Tratra educator courses, progress, and certification learning.">
+    <link rel="canonical" href="https://tratraedu.com/dashboard.html">
+    <meta property="og:title" content="Teacher Dashboard | Tratra">
+    <meta property="og:description" content="Access your Tratra educator courses, progress, and certification learning.">
+    <meta property="og:url" content="https://tratraedu.com/dashboard.html">
+    <meta property="og:type" content="website">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="firebase-config.js"></script>
     <script src="system.js"></script>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -95,88 +106,30 @@
     </main>
 
     <script>
-        function initDashboard() {
-            const user = Tratra.auth.getCurrentUser();
-            if (!user) {
-                window.location.href = 'login.html';
-                return;
-            }
-
-            document.getElementById('user-name').innerText = user.name;
-            document.getElementById('welcome-msg').innerText = `Welcome back, ${user.name.split(' ')[0]}! 👋`;
-            document.getElementById('user-avatar').innerText = user.name.charAt(0).toUpperCase();
-            document.getElementById('nav-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`;
-
-            const enrolled = user.enrolledCourses || [];
-            document.getElementById('stat-enrolled').innerText = enrolled.length;
-            document.getElementById('stat-completed').innerText = enrolled.filter(c => c.completed).length;
-            
-            // Render Courses
-            const grid = document.getElementById('courses-grid');
-            grid.innerHTML = '';
-
-            if (enrolled.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-span-full text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
-                        <p class="text-slate-500 mb-4">You haven't enrolled in any courses yet.</p>
-                        <a href="courses.html" class="text-indigo-600 font-bold hover:underline">Explore the Catalog →</a>
-                    </div>
-                `;
-            } else {
-                enrolled.forEach(course => {
-                    const card = document.createElement('div');
-                    card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition group flex justify-between items-center';
-                    
-                    const courseTitle = Tratra.courses[course.courseId]?.title || `Course ${course.courseId}`;
-                    const scoreData = user.scores?.[course.courseId];
-                    const scoreHtml = scoreData ? `<span class="text-sm font-bold text-green-600">Score: ${scoreData.score}/100</span>` : `<span class="text-sm text-slate-400 italic">No quiz taken</span>`;
-
-                    card.innerHTML = `
-                        <div class="flex-grow">
-                            <div class="flex items-center gap-3 mb-2">
-                                <h4 class="text-lg font-bold text-slate-800">${courseTitle}</h4>
-                                ${scoreHtml}
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="flex-grow bg-slate-100 rounded-full h-2 max-w-xs">
-                                    <div class="bg-indigo-600 h-2 rounded-full" style="width: ${course.progress}%"></div>
-                                </div>
-                                <span class="text-xs font-bold text-slate-500">${course.progress}%</span>
-                            </div>
-                        </div>
-                        <div class="ml-6">
-                            <a href="course.html?id=${course.courseId}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition">Continue</a>
-                        </div>
-                    `;
-                    grid.appendChild(card);
-                });
-            }
-
-            // Render Scores
-            const scoresList = document.getElementById('scores-list');
-            scoresList.innerHTML = '';
-            if (!user.scores || Object.keys(user.scores).length === 0) {
-                scoresList.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">No scores recorded yet.</p>';
-            } else {
-                for (const [id, data] of Object.entries(user.scores)) {
-                    const title = Tratra.courses[id]?.title || 'Unknown Course';
-                    const item = document.createElement('div');
-                    item.className = 'flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100';
-                    item.innerHTML = `
-                        <span class="text-sm font-medium text-slate-700">${title}</span>
-                        <span class="text-sm font-bold ${data.score >= 60 ? 'text-green-600' : 'text-red-600'}">${data.score}/100</span>
-                    `;
-                    scoresList.appendChild(item);
-                }
-            }
-        }
-
-        function handleLogout() {
-            Tratra.auth.logout();
-            window.location.href = 'login.html';
-        }
-
-        window.onload = initDashboard;
-    </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a077b17b9b41ad67',t:'MTc4MDc1MTgwNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+      function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c])); }
+      async function initDashboard() {
+        try {
+          const state = await Tratra.auth.ready;
+          const user = Tratra.auth.getCurrentUser();
+          if (!state.user || !user) { window.location.href = 'login.html'; return; }
+          document.getElementById('user-name').innerText = user.name;
+          document.getElementById('welcome-msg').innerText = `Welcome back, ${user.name.split(' ')[0]}!`;
+          document.getElementById('user-avatar').innerText = user.name.charAt(0).toUpperCase();
+          document.getElementById('nav-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`;
+          const access = await Tratra.lms.getAccess(user.uid);
+          const ids = access.bundleAccess ? Object.keys(Tratra.courses) : (access.courses || []).filter((id) => Tratra.courses[id]);
+          const progress = await Promise.all(ids.map((id) => Tratra.lms.getProgress(user.uid, id)));
+          const scores = await Tratra.lms.getScores(user.uid);
+          document.getElementById('stat-enrolled').innerText = ids.length;
+          document.getElementById('stat-completed').innerText = progress.filter((item) => item.completed || Number(item.progress) >= 100).length;
+          document.getElementById('stat-level').innerText = ids.length >= 8 ? 'Advanced' : ids.length ? 'Developing' : 'New learner';
+          const grid = document.getElementById('courses-grid'); grid.innerHTML = '';
+          if (!ids.length) { grid.innerHTML = '<div class="col-span-full text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200"><p class="text-slate-500 mb-4">You have not enrolled in any courses yet.</p><a href="courses.html" class="text-indigo-600 font-bold hover:underline">Explore the Catalog →</a></div>'; }
+          else ids.forEach((id, index) => { const course = Tratra.courses[id]; const item = progress[index] || { progress: 0 }; const score = scores[id]; const card = document.createElement('div'); card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition group flex justify-between items-center'; card.innerHTML = `<div class="flex-grow"><div class="flex items-center gap-3 mb-2"><h3 class="text-lg font-bold text-slate-800">${escapeHtml(course.title)}</h3>${score ? `<span class="text-sm font-bold text-green-600">Score: ${escapeHtml(score.score)}/100</span>` : '<span class="text-sm text-slate-400 italic">No quiz taken</span>'}</div><div class="flex items-center gap-4"><div class="flex-grow bg-slate-100 rounded-full h-2 max-w-xs"><div class="bg-indigo-600 h-2 rounded-full" style="width:${Math.max(0, Math.min(100, Number(item.progress) || 0))}%"></div></div><span class="text-xs font-bold text-slate-500">${Number(item.progress) || 0}%</span></div></div><div class="ml-6"><a href="course.html?id=${encodeURIComponent(id)}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition">Continue</a></div>`; grid.appendChild(card); });
+          const scoresList = document.getElementById('scores-list'); scoresList.innerHTML = ''; const scoreEntries = Object.entries(scores); if (!scoreEntries.length) scoresList.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">No scores recorded yet.</p>'; else scoreEntries.forEach(([id, data]) => { const item = document.createElement('div'); item.className = 'flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100'; item.innerHTML = `<span class="text-sm font-medium text-slate-700">${escapeHtml(Tratra.courses[id]?.title || id)}</span><span class="text-sm font-bold ${Number(data.score) >= 60 ? 'text-green-600' : 'text-red-600'}">${escapeHtml(data.score)}/100</span>`; scoresList.appendChild(item); });
+        } catch (error) { console.error(error); alert(error.message || 'Could not load your dashboard.'); window.location.href = 'login.html'; }
+      }
+      async function handleLogout() { await Tratra.auth.logout(); window.location.href = 'login.html'; }
+      window.addEventListener('load', initDashboard);
+    </script></body>
 </html>

@@ -1,0 +1,194 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        'admin' in request.auth.token &&
+        request.auth.token.admin == true;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function hasSafeTeacherPrivileges(data) {
+      return data.role == 'teacher' &&
+        data.status == 'approved' &&
+        data.plan == 'free' &&
+        !('admin' in data) &&
+        !('isAdmin' in data);
+    }
+
+    function isTratraAdmin() {
+      return isAdmin() ||
+        (signedIn() &&
+         request.auth.token.email == 'tratraedu@gmail.com' &&
+         request.auth.token.email_verified == true);
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == teacherId;
+    }
+
+    match /students/{studentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+        (request.auth.uid == studentId ||
+         request.auth.uid == request.resource.data.teacherId);
+      allow update, delete: if request.auth != null &&
+        (request.auth.uid == studentId ||
+         request.auth.uid == resource.data.teacherId);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() ||
+        (isOwner(userId) && hasSafeTeacherPrivileges(request.resource.data));
+      allow update: if isAdmin() ||
+        (isOwner(userId) &&
+         hasSafeTeacherPrivileges(resource.data) &&
+         hasSafeTeacherPrivileges(request.resource.data) &&
+         request.resource.data.role == resource.data.role &&
+         request.resource.data.status == resource.data.status &&
+         request.resource.data.plan == resource.data.plan);
+      allow delete: if isAdmin();
+    }
+
+    match /assignments/{assignmentId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+
+    match /messages/{messageId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /videos/{videoId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /parents/{parentId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /homework/{homeworkId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /homeworkSubmissions/{submissionId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /labProcedures/{procedureId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /branding/{brandingId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /templates/{templateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /googleClassroomConnections/{userId} {
+      allow read, write: if false;
+    }
+
+    match /tratraUsers/{userId} {
+      allow get: if isOwner(userId) || isTratraAdmin();
+      allow list: if isTratraAdmin();
+      allow create: if isOwner(userId) &&
+        request.resource.data.uid == userId &&
+        request.resource.data.role == 'teacher' &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.plan == 'free';
+      allow update: if isTratraAdmin() ||
+        (isOwner(userId) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+           'name', 'phone', 'subject', 'email'
+         ]));
+      allow delete: if isTratraAdmin();
+    }
+
+    match /tratraPayments/{paymentId} {
+      allow get, list: if isTratraAdmin() ||
+        (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.method == 'bank_transfer' &&
+        request.resource.data.reference is string &&
+        request.resource.data.reference.size() > 0;
+      allow update, delete: if isTratraAdmin();
+    }
+
+    match /tratraAccess/{userId} {
+      allow read: if isTratraAdmin() || isOwner(userId);
+      allow write: if isTratraAdmin();
+    }
+
+    match /tratraProgress/{userId}/courses/{courseId} {
+      allow read, create, update: if isTratraAdmin() || isOwner(userId);
+      allow delete: if isTratraAdmin() || isOwner(userId);
+    }
+
+    match /tratraScores/{scoreId} {
+      allow read: if isTratraAdmin() ||
+        (signedIn() && resource.data.uid == request.auth.uid);
+      allow create, update: if signedIn() &&
+        request.resource.data.uid == request.auth.uid;
+      allow delete: if isTratraAdmin();
+    }
+
+    match /tratraSettings/{settingId} {
+      allow read: if true;
+      allow write: if isTratraAdmin();
+    }
+
+    match /tratraCourses/{courseId} {
+      allow read: if true;
+      allow write: if isTratraAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

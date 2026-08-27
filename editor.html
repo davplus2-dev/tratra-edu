@@ -6,6 +6,11 @@
     <title>CMS Editor - Tratra Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="firebase-config.js"></script>
     <script src="system.js"></script>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -100,133 +105,67 @@
     </main>
 
     <script>
-        function initCMS() {
-            const user = Tratra.auth.getCurrentUser();
-            if (!user || user.role !== 'admin') {
-                alert('Access Denied.');
-                window.location.href = 'login.html';
-                return;
-            }
+      function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c])); }
+      let editorSettings;
+      let editorCourses;
 
-            // Load General Settings
-            document.getElementById('setting-siteName').value = Tratra.settings.siteName;
-            document.getElementById('setting-whatsapp').value = Tratra.settings.whatsapp;
+      async function initCMS() {
+        try {
+          await Tratra.auth.ready;
+          await Tratra.admin.require();
+          editorSettings = await Tratra.admin.getSettings();
+          const overrides = await Tratra.admin.getCourses();
+          editorCourses = { ...Tratra.courses, ...overrides };
+          document.getElementById('setting-siteName').value = editorSettings.siteName || 'Tratra';
+          document.getElementById('setting-whatsapp').value = editorSettings.whatsapp || '';
 
-            // Load Bank Details
-            const bankGrid = document.getElementById('bank-editor-grid');
-            bankGrid.innerHTML = '';
-            Object.entries(Tratra.settings.bankData).forEach(([cur, data]) => {
-                const card = document.createElement('div');
-                card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-200';
-                card.innerHTML = `
-                    <h4 class="text-lg font-bold text-indigo-600 mb-4">${cur} Account</h4>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Bank Name</label>
-                            <input type="text" data-cur="${cur}" data-field="bank" value="${data.bank}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Account Name</label>
-                            <input type="text" data-cur="${cur}" data-field="accName" value="${data.accName}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Account Number</label>
-                            <input type="text" data-cur="${cur}" data-field="accNum" value="${data.accNum}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Additional Info / IBAN</label>
-                            <input type="text" data-cur="${cur}" data-field="extra" value="${data.extra}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                    </div>
-                `;
-                bankGrid.appendChild(card);
-            });
+          const bankGrid = document.getElementById('bank-editor-grid');
+          bankGrid.innerHTML = '';
+          Object.entries(editorSettings.bankData || {}).forEach(([cur, data]) => {
+            const card = document.createElement('div');
+            card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-200';
+            card.innerHTML = `<h4 class="text-lg font-bold text-indigo-600 mb-4">${escapeHtml(cur)} Account</h4><div class="space-y-4">${[['bank','Bank Name'],['accName','Account Name'],['accNum','Account Number'],['extra','Additional Info / IBAN']].map(([field,label]) => `<div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">${label}</label><input type="text" data-cur="${escapeHtml(cur)}" data-field="${field}" value="${escapeHtml(data[field] || '')}" class="bank-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"></div>`).join('')}</div>`;
+            bankGrid.appendChild(card);
+          });
 
-            // Load Course Editors
-            const courseGrid = document.getElementById('course-editor-grid');
-            courseGrid.innerHTML = '';
-            Object.entries(Tratra.courses).forEach(([id, course]) => {
-                const card = document.createElement('div');
-                card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-200';
-                card.innerHTML = `
-                    <div class="flex justify-between items-center mb-6">
-                        <h4 class="text-lg font-bold text-indigo-600">${id.toUpperCase()} - ${course.title}</h4>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Course Title</label>
-                            <input type="text" id="title-${id}" value="${course.title}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">PPT Link</label>
-                            <input type="text" id="ppt-${id}" value="${course.resources.ppt}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">PDF Link</label>
-                            <input type="text" id="pdf-${id}" value="${course.resources.pdf}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Video Link</label>
-                            <input type="text" id="video-${id}" value="${course.resources.video}" class="course-input w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                    </div>
-                `;
-                courseGrid.appendChild(card);
-            });
-        }
+          const courseGrid = document.getElementById('course-editor-grid');
+          courseGrid.innerHTML = '';
+          Object.entries(editorCourses).forEach(([id, course]) => {
+            const card = document.createElement('div');
+            card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-200';
+            card.innerHTML = `<div class="flex justify-between items-center mb-6"><h4 class="text-lg font-bold text-indigo-600">${escapeHtml(id.toUpperCase())} - ${escapeHtml(course.title)}</h4></div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">Course Title</label><input type="text" id="title-${id}" value="${escapeHtml(course.title)}" class="course-input w-full px-3 py-2 border rounded-lg"></div><div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">PPT Link</label><input type="text" id="ppt-${id}" value="${escapeHtml(course.resources?.ppt || '')}" class="course-input w-full px-3 py-2 border rounded-lg"></div><div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">PDF Link</label><input type="text" id="pdf-${id}" value="${escapeHtml(course.resources?.pdf || '')}" class="course-input w-full px-3 py-2 border rounded-lg"></div><div><label class="block text-xs font-bold text-slate-400 uppercase mb-1">Video Link</label><input type="text" id="video-${id}" value="${escapeHtml(course.resources?.video || '')}" class="course-input w-full px-3 py-2 border rounded-lg"></div></div>`;
+            courseGrid.appendChild(card);
+          });
+        } catch (error) { alert(error.message || 'Administrator access is required.'); window.location.href = 'login.html'; }
+      }
 
-        function saveSettings() {
-            const siteName = document.getElementById('setting-siteName').value;
-            const whatsapp = document.getElementById('setting-whatsapp').value;
-            
-            Tratra.settings.siteName = siteName;
-            Tratra.settings.whatsapp = whatsapp;
-            
-            localStorage.setItem('tratra_site_settings', JSON.stringify(Tratra.settings));
-            alert('General settings updated successfully!');
-        }
+      async function saveSettings() {
+        try {
+          editorSettings.siteName = document.getElementById('setting-siteName').value.trim();
+          editorSettings.whatsapp = document.getElementById('setting-whatsapp').value.trim();
+          await Tratra.admin.saveSettings(editorSettings);
+          alert('General settings updated successfully.');
+        } catch (error) { alert(error.message || 'Could not save settings.'); }
+      }
 
-        function saveBankDetails() {
-            const inputs = document.querySelectorAll('.bank-input');
-            inputs.forEach(input => {
-                const cur = input.getAttribute('data-cur');
-                const field = input.getAttribute('data-field');
-                Tratra.settings.bankData[cur][field] = input.value;
-            });
-            
-            localStorage.setItem('tratra_site_settings', JSON.stringify(Tratra.settings));
-            alert('Bank details updated successfully!');
-        }
+      async function saveBankDetails() {
+        try {
+          document.querySelectorAll('.bank-input').forEach((input) => { editorSettings.bankData[input.dataset.cur][input.dataset.field] = input.value.trim(); });
+          await Tratra.admin.saveSettings(editorSettings);
+          alert('Bank details updated successfully.');
+        } catch (error) { alert(error.message || 'Could not save bank details.'); }
+      }
 
-        function saveAllCourses() {
-            Object.keys(Tratra.courses).forEach(id => {
-                const title = document.getElementById(`title-${id}`).value;
-                const ppt = document.getElementById(`ppt-${id}`).value;
-                const pdf = document.getElementById(`pdf-${id}`).value;
-                const video = document.getElementById(`video-${id}`).value;
+      async function saveAllCourses() {
+        try {
+          await Promise.all(Object.keys(editorCourses).map((id) => Tratra.admin.saveCourse(id, { title: document.getElementById(`title-${id}`).value.trim(), resources: { ppt: document.getElementById(`ppt-${id}`).value.trim(), pdf: document.getElementById(`pdf-${id}`).value.trim(), video: document.getElementById(`video-${id}`).value.trim() } })));
+          alert('All course resources updated successfully.');
+        } catch (error) { alert(error.message || 'Could not save courses.'); }
+      }
 
-                Tratra.courses[id].title = title;
-                Tratra.courses[id].resources = { ppt, pdf, video };
-            });
-            
-            localStorage.setItem('tratra_course_overrides', JSON.stringify(Tratra.courses));
-            alert('All course resources updated successfully!');
-        }
-
-        function resetAllCustomizations() {
-            if (confirm('Are you sure you want to reset all customizations? This will revert everything to the defaults in system.js.')) {
-                localStorage.removeItem('tratra_course_overrides');
-                localStorage.removeItem('tratra_site_settings');
-                window.location.reload();
-            }
-        }
-
-        function handleLogout() {
-            Tratra.auth.logout();
-            window.location.href = 'login.html';
-        }
-
-        window.onload = initCMS;
+      function resetAllCustomizations() { alert('Resetting course content is disabled in the secure version. Edit and save each course instead.'); }
+      async function handleLogout() { await Tratra.auth.logout(); window.location.href = 'login.html'; }
+      window.addEventListener('load', initCMS);
     </script>
 </body>
 </html>
