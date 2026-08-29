@@ -47,12 +47,12 @@
       const currency = document.getElementById("currency-selector").value;
       const button = document.getElementById("paystackButton");
       const description = document.getElementById("paystackDescription");
-      const supported = currency === "NGN" || currency === "USD";
+      const supported = currency === "NGN";
       button.disabled = !supported;
-      button.textContent = supported ? `Pay with Paystack (${currency})` : "Paystack is not available for OMR";
+      button.textContent = supported ? "Pay with Paystack (NGN)" : `Paystack is not enabled for ${currency}`;
       description.textContent = supported
-        ? `Paystack checkout is available in ${currency === "USD" ? "US Dollars" : "Nigerian Naira"}. For Omani Rial, use the manual bank-transfer option below.`
-        : "Paystack does not currently process Omani Rial here. Use the manual bank-transfer or WhatsApp option below.";
+        ? "Paystack checkout is currently available in Nigerian Naira. Use the manual bank-transfer or WhatsApp option for USD and OMR."
+        : `Paystack has not enabled ${currency} for this merchant yet. Use the manual bank-transfer or WhatsApp option below.`;
       button.classList.toggle("opacity-50", !supported);
       button.classList.toggle("cursor-not-allowed", !supported);
     }
@@ -66,7 +66,7 @@
       try {
         await Tratra.payments.startPaystack({ product: selectedPlan, courseId: selectedPlan === "single" ? courseSelector.value : "", currency: document.getElementById("currency-selector").value });
       } catch (error) {
-        status.textContent = error.message || "Paystack could not start."; status.className = "text-sm mt-3 text-red-700"; button.disabled = false; button.textContent = "Pay with Paystack (NGN)";
+        status.textContent = error.message || "Paystack could not start."; status.className = "text-sm mt-3 text-red-700"; button.disabled = false; updatePaystackOption();
       }
     }
     document.getElementById("currency-selector").addEventListener("change", () => { renderBankDetails(); updatePaystackOption(); });
