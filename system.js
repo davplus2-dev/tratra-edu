@@ -371,12 +371,12 @@
         if (!proofPath) return "";
         return storage.ref(proofPath).getDownloadURL();
       },
-      startPaystack: async ({ product, courseId = "" }) => {
+      startPaystack: async ({ product, courseId = "", currency = "NGN" }) => {
         const token = await Tratra.auth.getIdToken();
         const response = await fetch("/.netlify/functions/paystack-initialize", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ site: "tratra", product, courseId }),
+          body: JSON.stringify({ site: "tratra", product, courseId, currency }),
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success || !result.authorizationUrl) throw new Error(result.error || "Paystack could not start the payment.");

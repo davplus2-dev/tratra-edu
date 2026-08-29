@@ -54,13 +54,33 @@ export async function verifyUser(event) {
   return auth.verifyIdToken(token);
 }
 
-export function getProduct(product, courseId) {
+export function getProduct(product, courseId, currency = "NGN") {
+  const selectedCurrency = String(currency || "NGN").toUpperCase();
+  if (!["NGN", "USD"].includes(selectedCurrency)) {
+    throw new Error("Paystack checkout is available in NGN and USD. Use manual WhatsApp or bank transfer for OMR.");
+  }
   if (product === "single") {
     if (!TRATRA_COURSES.includes(courseId)) throw new Error("Choose a valid Tratra course.");
-    return { product: "single", productId: `tratra-single-${courseId}`, courseId, plan: "single", amount: 3000000, currency: "NGN", label: "Tratra Single Course" };
+    return {
+      product: "single",
+      productId: `tratra-single-${courseId}-${selectedCurrency.toLowerCase()}`,
+      courseId,
+      plan: "single",
+      amount: selectedCurrency === "USD" ? 2000 : 3000000,
+      currency: selectedCurrency,
+      label: "Tratra Single Course",
+    };
   }
   if (product === "bundle") {
-    return { product: "bundle", productId: "tratra-bundle", courseId: "", plan: "bundle", amount: 14850000, currency: "NGN", label: "Tratra All-In-One Bundle" };
+    return {
+      product: "bundle",
+      productId: `tratra-bundle-${selectedCurrency.toLowerCase()}`,
+      courseId: "",
+      plan: "bundle",
+      amount: selectedCurrency === "USD" ? 9900 : 14850000,
+      currency: selectedCurrency,
+      label: "Tratra All-In-One Bundle",
+    };
   }
   throw new Error("Unsupported Tratra payment option.");
 }
@@ -68,7 +88,7 @@ export function getProduct(product, courseId) {
 export async function initializeTransaction(event) {
   const user = await verifyUser(event);
   const body = requestBody(event);
-  const selected = getProduct(String(body.product || "").toLowerCase(), String(body.courseId || ""));
+  const selected = getProduct(String(body.product || "").toLowerCase(), String(body.courseId || ""), body.currency);
   const email = String(user.email || "").toLowerCase();
   if (!email) throw new Error("The signed-in account has no email address.");
   const secret = requireEnv("PAYSTACK_SECRET_KEY");
