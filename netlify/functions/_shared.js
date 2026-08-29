@@ -54,13 +54,29 @@ export async function verifyUser(event) {
   return auth.verifyIdToken(token);
 }
 
-export function getProduct(product, courseId, currency = "NGN") {
+export async function getProduct(product, courseId, currency = "NGN") {
   const selectedCurrency = String(currency || "NGN").toUpperCase();
   if (!["NGN", "USD"].includes(selectedCurrency)) {
     throw new Error("Paystack checkout is available in NGN and USD. Use manual WhatsApp or bank transfer for OMR.");
   }
   if (product === "single") {
-    if (!TRATRA_COURSES.includes(courseId)) throw new Error("Choose a valid Tratra course.");
+    if (!TRATRA_COURSES.includes(courseId)) {
+      const { db } = getAdminServices();
+      const customCourse = await db.collection("tratraCourses").doc(courseId).get();
+      if (!customCourse.exists || customCourse.data().published === false) throw new Error("Choose a valid published Tratra course.");
+      const courseData = customCourse.data();
+      const baseAmount = selectedCurrency === "USD" ? Number(courseData.priceUsd || 0) : Number(courseData.priceNgn || 0);
+      if (!Number.isFinite(baseAmount) || baseAmount <= 0) throw new Error("This course has no valid payment price yet.");
+      return {
+        product: "single",
+        productId: `tratra-single-${courseId}-${selectedCurrency.toLowerCase()}`,
+        courseId,
+        plan: "single",
+        amount: selectedCurrency === "USD" ? Math.round(baseAmount * 100) : Math.round(baseAmount * 100),
+        currency: selectedCurrency,
+        label: courseData.title || "Tratra Single Course",
+      };
+    }
     return {
       product: "single",
       productId: `tratra-single-${courseId}-${selectedCurrency.toLowerCase()}`,
@@ -88,7 +104,7 @@ export function getProduct(product, courseId, currency = "NGN") {
 export async function initializeTransaction(event) {
   const user = await verifyUser(event);
   const body = requestBody(event);
-  const selected = getProduct(String(body.product || "").toLowerCase(), String(body.courseId || ""), body.currency);
+  const selected = await getProduct(String(body.product || "").toLowerCase(), String(body.courseId || ""), body.currency);
   const email = String(user.email || "").toLowerCase();
   if (!email) throw new Error("The signed-in account has no email address.");
   const secret = requireEnv("PAYSTACK_SECRET_KEY");
@@ -140,6 +156,14 @@ export async function verifyTransaction(reference) {
   return result.data;
 }
 
+async function getPublishedCourseIds(db) {
+  const snap = await db.collection("tratraCourses").get();
+  return Array.from(new Set([
+    ...TRATRA_COURSES,
+    ...snap.docs.filter((item) => item.data().published !== false).map((item) => item.id),
+  ]));
+}
+
 export async function fulfillTransaction(reference) {
   const data = await verifyTransaction(reference);
   const { db } = getAdminServices();
@@ -153,6 +177,7 @@ export async function fulfillTransaction(reference) {
   }
 
   if (payment.status === "completed") return { alreadyCompleted: true, payment };
+  const allPublishedCourseIds = payment.plan === "bundle" ? await getPublishedCourseIds(db) : TRATRA_COURSES;
   await db.runTransaction(async (transaction) => {
     const currentSnap = await transaction.get(paymentRef);
     if (currentSnap.data()?.status === "completed") return;
@@ -160,7 +185,7 @@ export async function fulfillTransaction(reference) {
     const userRef = db.collection("tratraUsers").doc(payment.uid);
     const accessSnap = await transaction.get(accessRef);
     const existing = accessSnap.exists ? accessSnap.data() : {};
-    const courseIds = payment.plan === "bundle" ? TRATRA_COURSES : Array.from(new Set([...(existing.courses || []), payment.courseId])).filter(Boolean);
+    const courseIds = payment.plan === "bundle" ? allPublishedCourseIds : Array.from(new Set([...(existing.courses || []), payment.courseId])).filter(Boolean);
     transaction.set(accessRef, { uid: payment.uid, bundleAccess: payment.plan === "bundle" || existing.bundleAccess === true, courses: courseIds, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(userRef, { status: "approved", plan: payment.plan, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(paymentRef, { status: "completed", paystackStatus: "success", paystackTransactionId: String(data.id || ""), paidAt: data.paid_at || new Date().toISOString(), verifiedAt: FieldValue.serverTimestamp() }, { merge: true });

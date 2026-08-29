@@ -256,12 +256,16 @@
     try {
       const snap = await db.collection(COURSES).get();
       snap.forEach((item) => {
+        const data = item.data();
         const base = courses[item.id] || {};
         courses[item.id] = {
           ...base,
-          ...item.data(),
-          resources: { ...(base.resources || {}), ...(item.data().resources || {}) }
+          ...data,
+          published: data.published !== false,
+          resources: { ...(base.resources || {}), ...(data.resources || {}) }
         };
+        if (Array.isArray(data.modules) && data.modules.length) courseContent[item.id] = data.modules;
+        if (Array.isArray(data.quiz) && data.quiz.length) courses[item.id].quiz = data.quiz;
       });
     } catch (error) {
       console.error("Course settings load failed", error);
@@ -426,7 +430,8 @@
       getSettings,
       saveSettings: async (data) => { await requireAdmin(); await db.collection(SETTINGS).doc("site").set(data, { merge: true }); },
       getCourses: async () => { await requireAdmin(); const snap = await db.collection(COURSES).get(); const result = {}; snap.forEach((item) => { result[item.id] = item.data(); }); return result; },
-      saveCourse: async (courseId, data) => { await requireAdmin(); await db.collection(COURSES).doc(courseId).set(data, { merge: true }); }
+      saveCourse: async (courseId, data) => { await requireAdmin(); await db.collection(COURSES).doc(courseId).set(data, { merge: true }); },
+      deleteCourseOverride: async (courseId) => { await requireAdmin(); await db.collection(COURSES).doc(courseId).delete(); }
     }
   };
 

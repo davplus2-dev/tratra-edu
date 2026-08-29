@@ -85,7 +85,77 @@
                 </div>
             </div>
 
-            <!-- Section 3: Course Content -->
+            <!-- Section 3: Course Manager -->
+            <div class="mb-12 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="mb-6">
+                    <h3 class="text-2xl font-bold text-slate-800">Course Manager</h3>
+                    <p class="text-slate-500">Edit an existing course or create a new course without editing code. Use one lesson or question per line in the simple formats shown below.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Existing course</label>
+                        <select id="managed-course-select" onchange="loadManagedCourse()" class="w-full px-3 py-2 border rounded-lg"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Course ID</label>
+                        <input id="managed-course-id" type="text" placeholder="Example: c9" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Course title</label>
+                        <input id="managed-course-title" type="text" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Description</label>
+                        <input id="managed-course-description" type="text" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Nigeria price (NGN)</label>
+                        <input id="managed-course-price-ngn" type="number" min="0" step="1" placeholder="30000" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">USD price (manual until enabled)</label>
+                        <input id="managed-course-price-usd" type="number" min="0" step="0.01" placeholder="20" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Learning outcomes (one per line)</label>
+                        <textarea id="managed-course-outcomes" rows="3" class="w-full px-3 py-2 border rounded-lg" placeholder="Outcome 1
+Outcome 2
+Outcome 3"></textarea>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Lessons (one per line)</label>
+                        <textarea id="managed-course-lessons" rows="6" class="w-full px-3 py-2 border rounded-lg font-mono text-sm" placeholder="Module title | Lesson title | Lesson explanation
+Module title | Another lesson | Lesson explanation"></textarea>
+                        <p class="text-xs text-slate-500 mt-1">Format: Module title | Lesson title | Lesson explanation</p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Quiz questions (one per line)</label>
+                        <textarea id="managed-course-quiz" rows="7" class="w-full px-3 py-2 border rounded-lg font-mono text-sm" placeholder="Question | Option A | Option B | Option C | Option D | Correct option 1-4 | Explanation"></textarea>
+                        <p class="text-xs text-slate-500 mt-1">Format: Question | A | B | C | D | correct number 1-4 | explanation</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">PowerPoint link</label>
+                        <input id="managed-course-ppt" type="text" placeholder="assets/course.pptx" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">PDF handbook link</label>
+                        <input id="managed-course-pdf" type="text" placeholder="assets/course.pdf" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Video link (optional)</label>
+                        <input id="managed-course-video" type="text" placeholder="https://..." class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <label class="flex items-center gap-3 text-sm font-semibold text-slate-700 mt-6"><input id="managed-course-published" type="checkbox" class="w-4 h-4"> Published in the course catalogue</label>
+                </div>
+                <div class="flex gap-3 mt-6 flex-wrap">
+                    <button type="button" onclick="saveManagedCourse()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition">Save Course</button>
+                    <button type="button" onclick="clearManagedCourseForm()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition">New Course</button>
+                    <button type="button" onclick="deleteManagedCourse()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200 transition">Remove Custom Override</button>
+                </div>
+                <p id="managed-course-status" class="text-sm mt-4 text-slate-500"></p>
+            </div>
+
+            <!-- Section 4: Course Content -->
             <div>
                 <div class="flex justify-between items-end mb-6">
                     <div>
@@ -116,6 +186,8 @@
           editorSettings = await Tratra.admin.getSettings();
           const overrides = await Tratra.admin.getCourses();
           editorCourses = { ...Tratra.courses, ...overrides };
+          populateManagedCourseSelect();
+          loadManagedCourse();
           document.getElementById('setting-siteName').value = editorSettings.siteName || 'Tratra';
           document.getElementById('setting-whatsapp').value = editorSettings.whatsapp || '';
 
@@ -163,7 +235,113 @@
         } catch (error) { alert(error.message || 'Could not save courses.'); }
       }
 
-      function resetAllCustomizations() { alert('Resetting course content is disabled in the secure version. Edit and save each course instead.'); }
+      function populatedCourseIds() {
+        return Object.keys(editorCourses || {}).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      }
+
+      function populateManagedCourseSelect(selectedId = '') {
+        const select = document.getElementById('managed-course-select');
+        select.innerHTML = '<option value="">Create a new course...</option>';
+        populatedCourseIds().forEach((id) => {
+          const option = document.createElement('option');
+          option.value = id;
+          option.textContent = `${id.toUpperCase()} — ${editorCourses[id].title || 'Untitled course'}`;
+          select.appendChild(option);
+        });
+        if (selectedId && editorCourses[selectedId]) select.value = selectedId;
+      }
+
+      function currentManagedCourseId() {
+        return document.getElementById('managed-course-id').value.trim().toLowerCase();
+      }
+
+      function loadManagedCourse() {
+        const id = document.getElementById('managed-course-select').value;
+        const course = id ? editorCourses[id] : null;
+        document.getElementById('managed-course-id').value = id || '';
+        document.getElementById('managed-course-title').value = course?.title || '';
+        document.getElementById('managed-course-description').value = course?.description || '';
+        document.getElementById('managed-course-price-ngn').value = course?.priceNgn ?? (course ? 30000 : '');
+        document.getElementById('managed-course-price-usd').value = course?.priceUsd ?? (course ? 20 : '');
+        document.getElementById('managed-course-outcomes').value = (course?.outcomes || []).join('\n');
+        document.getElementById('managed-course-ppt').value = course?.resources?.ppt || '';
+        document.getElementById('managed-course-pdf').value = course?.resources?.pdf || '';
+        document.getElementById('managed-course-video').value = course?.resources?.video || '';
+        document.getElementById('managed-course-published').checked = course?.published !== false;
+        const modules = id ? (Tratra.courseContent[id] || []) : [];
+        document.getElementById('managed-course-lessons').value = modules.flatMap((module) => (module.lessons || []).map((lesson) => `${module.title} | ${lesson.title} | ${lesson.body}`)).join('\n');
+        document.getElementById('managed-course-quiz').value = (course?.quiz || []).map((item) => `${item.q} | ${(item.a || [])[0] || ''} | ${(item.a || [])[1] || ''} | ${(item.a || [])[2] || ''} | ${(item.a || [])[3] || ''} | ${Number(item.correct || 0) + 1} | ${item.explanation || ''}`).join('\n');
+        document.getElementById('managed-course-status').textContent = id ? `Editing ${id.toUpperCase()}.` : 'Ready to create a new course.';
+      }
+
+      function clearManagedCourseForm() {
+        document.getElementById('managed-course-select').value = '';
+        loadManagedCourse();
+      }
+
+      function parseLessonLines(value) {
+        const groups = [];
+        const byTitle = new Map();
+        String(value || '').split('\n').map((line) => line.trim()).filter(Boolean).forEach((line) => {
+          const parts = line.split('|').map((part) => part.trim());
+          if (parts.length < 3) return;
+          const moduleTitle = parts.shift();
+          const lessonTitle = parts.shift();
+          const body = parts.join(' | ');
+          if (!byTitle.has(moduleTitle)) { byTitle.set(moduleTitle, { title: moduleTitle, lessons: [] }); groups.push(byTitle.get(moduleTitle)); }
+          byTitle.get(moduleTitle).lessons.push({ title: lessonTitle, body });
+        });
+        return groups;
+      }
+
+      function parseQuizLines(value) {
+        return String(value || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+          const parts = line.split('|').map((part) => part.trim());
+          if (parts.length < 7) return null;
+          const [q, ...rest] = parts;
+          const explanation = rest.pop();
+          const correctNumber = Math.max(1, Math.min(4, Number(rest.pop()) || 1));
+          return { q, a: rest.slice(0, 4), correct: correctNumber - 1, explanation };
+        }).filter((item) => item && item.q && item.a.length === 4 && item.a.every(Boolean));
+      }
+
+      async function saveManagedCourse() {
+        const id = currentManagedCourseId().replace(/[^a-z0-9_-]/g, '');
+        const title = document.getElementById('managed-course-title').value.trim();
+        const description = document.getElementById('managed-course-description').value.trim();
+        const lessons = parseLessonLines(document.getElementById('managed-course-lessons').value);
+        const quiz = parseQuizLines(document.getElementById('managed-course-quiz').value);
+        if (!id || !title) { alert('Please enter a Course ID and course title.'); return; }
+        if (!lessons.length || lessons.some((module) => !module.lessons.length)) { alert('Please add at least one lesson using: Module | Lesson title | Lesson explanation'); return; }
+        if (!quiz.length) { alert('Please add at least one quiz question using the format shown below the quiz box.'); return; }
+        const data = { title, description, priceNgn: Number(document.getElementById('managed-course-price-ngn').value || 0), priceUsd: Number(document.getElementById('managed-course-price-usd').value || 0), outcomes: document.getElementById('managed-course-outcomes').value.split('\n').map((item) => item.trim()).filter(Boolean), resources: { ppt: document.getElementById('managed-course-ppt').value.trim(), pdf: document.getElementById('managed-course-pdf').value.trim(), video: document.getElementById('managed-course-video').value.trim() }, published: document.getElementById('managed-course-published').checked, modules: lessons, quiz };
+        try {
+          await Tratra.admin.saveCourse(id, data);
+          editorCourses[id] = { ...(editorCourses[id] || {}), ...data };
+          Tratra.courses[id] = { ...(Tratra.courses[id] || {}), ...data };
+          Tratra.courseContent[id] = lessons;
+          populateManagedCourseSelect(id);
+          document.getElementById('managed-course-select').value = id;
+          document.getElementById('managed-course-status').textContent = `${id.toUpperCase()} saved successfully.`;
+          alert(`Course ${id.toUpperCase()} saved successfully.`);
+          window.location.reload();
+        } catch (error) { alert(error.message || 'Could not save the course.'); }
+      }
+
+      async function deleteManagedCourse() {
+        const id = currentManagedCourseId();
+        if (!id || !editorCourses[id]) { alert('Select a custom course first.'); return; }
+        if (['c1','c2','c3','c4','c5','c6','c7','c8'].includes(id)) { alert('The eight built-in courses cannot be removed. You can unpublish or edit them.'); return; }
+        if (!confirm(`Remove the custom course ${id.toUpperCase()}?`)) return;
+        try {
+          await Tratra.admin.deleteCourseOverride(id);
+          delete editorCourses[id]; delete Tratra.courses[id]; delete Tratra.courseContent[id];
+          populateManagedCourseSelect(); clearManagedCourseForm();
+          alert('Custom course removed.');
+        } catch (error) { alert(error.message || 'Could not remove the course.'); }
+      }
+
+      function resetAllCustomizations() { alert('Use Course Manager to edit or unpublish a course. Resetting all Firebase course data is disabled.'); }
       async function handleLogout() { await Tratra.auth.logout(); window.location.href = 'login.html'; }
       window.addEventListener('load', initCMS);
     </script>

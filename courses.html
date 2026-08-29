@@ -13,6 +13,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="system.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
 
@@ -69,7 +75,7 @@
     <!-- Course Grid -->
     <main class="py-16 px-4">
         <div class="max-w-7xl mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div id="course-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 
                 <!-- Course 1 -->
                 <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col">
@@ -354,5 +360,26 @@
                 &copy; 2026 Tratra Teacher Training. All rights reserved.
             </div>
         </div>
-    </footer></body>
+    </footer>
+    <script>
+      function escapeCatalog(value) { return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+      async function renderCourseCatalog() {
+        try {
+          await Tratra.auth.ready;
+          const grid = document.getElementById('course-grid');
+          if (!grid) return;
+          grid.innerHTML = '';
+          Object.entries(Tratra.courses).filter(([, course]) => course.published !== false).forEach(([id, course]) => {
+            const card = document.createElement('article');
+            const outcomes = (course.outcomes || []).slice(0, 4).map((item) => `<li class="flex items-start gap-2 text-sm text-slate-700"><span class="text-indigo-600 font-bold">✓</span>${escapeCatalog(item)}</li>`).join('');
+            const price = course.priceNgn ? `₦${escapeCatalog(course.priceNgn)}` : 'Contact for price';
+            card.className = 'bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col';
+            card.innerHTML = `<div class="flex justify-between items-start mb-6 gap-4"><div><span class="text-xs font-bold text-indigo-600 uppercase">${escapeCatalog(id)}</span><h2 class="text-2xl font-bold text-slate-900 mt-2">${escapeCatalog(course.title)}</h2></div><div class="text-right whitespace-nowrap"><p class="text-xs font-bold text-slate-400 uppercase">One-time</p><p class="text-lg font-extrabold text-indigo-600">${price}</p></div></div><p class="text-slate-600 mb-6 leading-relaxed">${escapeCatalog(course.description || 'Professional development for educators.')}</p><div class="bg-slate-50 p-5 rounded-xl mb-8"><h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Learning Outcomes</h3><ul class="space-y-2">${outcomes}</ul></div><a href="register.html?course=${encodeURIComponent(id)}" class="mt-auto text-center py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition">Enroll in this Course</a>`;
+            grid.appendChild(card);
+          });
+        } catch (error) { console.error('Course catalogue load failed', error); }
+      }
+      window.addEventListener('load', renderCourseCatalog);
+    </script>
+</body>
 </html>
