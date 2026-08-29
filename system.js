@@ -331,7 +331,8 @@
       logout: () => auth.signOut(),
       getCurrentUser: () => profileFor(currentUser, currentProfile),
       isAdmin: () => isAdminUser(),
-      resendVerification: async () => { if (currentUser && !currentUser.emailVerified) await currentUser.sendEmailVerification(); }
+      resendVerification: async () => { if (currentUser && !currentUser.emailVerified) await currentUser.sendEmailVerification(); },
+      getIdToken: async () => { await ready; if (!currentUser) throw new Error("Please sign in first."); return currentUser.getIdToken(); }
     },
     db: {
       getUsers: async () => { await requireAdmin(); const snap = await db.collection(USERS).where("role", "==", "teacher").get(); return snap.docs.map((item) => ({ id: item.id, ...item.data() })); },
@@ -369,6 +370,17 @@
         await requireAdmin();
         if (!proofPath) return "";
         return storage.ref(proofPath).getDownloadURL();
+      },
+      startPaystack: async ({ product, courseId = "" }) => {
+        const token = await Tratra.auth.getIdToken();
+        const response = await fetch("/.netlify/functions/paystack-initialize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ site: "tratra", product, courseId }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success || !result.authorizationUrl) throw new Error(result.error || "Paystack could not start the payment.");
+        window.location.href = result.authorizationUrl;
       },
       approve: async (paymentId) => {
         await requireAdmin();
